@@ -166,6 +166,7 @@ def get_reward(info, snake_index, reward, score):
             if reward[i] < 0:
                 step_reward[i] -= 10
 
+
     return step_reward
 
 

@@ -15,6 +15,7 @@ from rollout import CommRolloutWorker
 from agent import Qagent
 from algo.qmix import QMIX
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+
 def generate_episode(args, agents, env, episode_num=None, evaluate=False):
     #if args.replay_dir != '' and evaluate and episode_num == 0:  # prepare for save replay
         #env.close()
@@ -25,12 +26,12 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
     win_tag = False
     step = 0
     episode_reward = 0
+    episode_reward1 = np.zeros(6)
     last_action = np.zeros((3, 4))
     #print("------",agents.policy)
     agents.policy.init_hidden(1)
     epsilon = 0 if evaluate else args.epsilon
-    if args.epsilon_anneal_scale == 'episode':
-        epsilon = epsilon - args.anneal_epsilon if epsilon > args.min_epsilon else epsilon
+
     state = env.get_all_observes()[0]
     while not terminated and step < args.episode_length:
         # time.sleep(0.2)
@@ -50,24 +51,28 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
             last_action[agent_id] = action_onehot
         all_actions = transform_actions(state, actions, env.board_height, env.board_width)
         next_state, reward, terminated, _, info = env.step(env.encode(all_actions))
-        '''
+
+        episode_reward1 += np.array(reward)
+
         if terminated:
-            if np.sum(episode_reward[:3]) > np.sum(episode_reward[3:]):
+            if np.sum(episode_reward1[:3]) > np.sum(episode_reward1[3:]):
                 step_reward = get_reward(info, [0, 1, 2], reward, score=1)
-            elif np.sum(episode_reward[:3]) < np.sum(episode_reward[3:]):
+            elif np.sum(episode_reward1[:3]) < np.sum(episode_reward1[3:]):
                 step_reward = get_reward(info, [0, 1, 2], reward, score=2)
             else:
                 step_reward = get_reward(info, [0, 1, 2], reward, score=0)
         else:
-            if np.sum(episode_reward[:3]) > np.sum(episode_reward[3:]):
+            if np.sum(episode_reward1[:3]) > np.sum(episode_reward1[3:]):
                 step_reward = get_reward(info, [0, 1, 2], reward, score=3)
-            elif np.sum(episode_reward[:3]) < np.sum(episode_reward[3:]):
+            elif np.sum(episode_reward1[:3]) < np.sum(episode_reward1[3:]):
                 step_reward = get_reward(info, [0, 1, 2], reward, score=4)
             else:
                 step_reward = get_reward(info, [0, 1, 2], reward, score=0)
+
         reward = np.sum(step_reward)
-        '''
-        reward = np.sum(reward[0:3]) - np.sum(reward[3:6])
+
+
+        # reward = np.sum(reward[0:3]) - np.sum(reward[3:6])
         win_tag = True if terminated and info['score'][0:3] > info['score'][3:6] else False#battle_won' in info and info['battle_won'] else False
         o.append(obs)
         s.append(state_to_list(state))
@@ -221,6 +226,8 @@ def main(args):
             win_rates.append(win_rate)
             episode_rewards.append(episode_reward)
             print("train epoch: {}, win rate: {}%, episode reward: {}".format(epoch, win_rate, episode_reward))
+        if args.epsilon_anneal_scale == 'episode':
+            args.epsilon = args.epsilon - args.anneal_epsilon if args.epsilon > args.min_epsilon else args.epsilon
     win_rate, episode_reward = evaluate(env, agent, args)
     print('win_rate is ', win_rate)
     win_rates.append(win_rate)
@@ -366,11 +373,11 @@ if __name__ == '__main__':
     args.lr = 5e-4
     args.episode_limit = args.episode_length
     # epsilon greedy
-    args.epsilon = 1
+    args.epsilon = 0.95
     args.min_epsilon = 0.05
     anneal_steps = 50
     args.anneal_epsilon = (args.epsilon - args.min_epsilon) / anneal_steps
-    args.epsilon_anneal_scale = 'step'
+    args.epsilon_anneal_scale = 'episode'
     args.n_agents = 3
     args.n_actions = 4
     args.state_shape = 606
