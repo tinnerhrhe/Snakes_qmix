@@ -10,7 +10,7 @@ Notes:
 https://github.com/jidiai/ai_lib/blob/master/examples/demo
 """
 
-
+# use to return agent_action
 def my_controller(observation, action_space, is_act_continuous=False):
     agent_action = []
     for i in range(len(action_space)):

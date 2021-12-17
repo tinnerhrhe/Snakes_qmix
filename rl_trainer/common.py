@@ -105,6 +105,7 @@ def greedy_snake(state_map, beans, snakes, width, height, ctrl_agent_index):
 # Head surroundings:    2:head_up; 3:head_down; 4:head_left; 5:head_right
 # Beans positions:      (6, 7) (8, 9) (10, 11) (12, 13) (14, 15)
 # Other snake positions: (16, 17) (18, 19) (20, 21) (22, 23) (24, 25) -- (other_x - self_x, other_y - self_y)
+#16+10*3=46
 def get_observations(state, agents_index, obs_dim, height, width):
     state_copy = state.copy()
     board_width = state_copy['board_width']
@@ -135,7 +136,7 @@ def get_observations(state, agents_index, obs_dim, height, width):
         observations[i][6:16] = beans_position[:]
 
         # other snake positions
-        snake_heads = np.array([snake[0] for snake in snakes_position])
+        snake_heads = np.array([snake[0:3] for snake in snakes_position])
         snake_heads = np.delete(snake_heads, i, 0)
         observations[i][16:] = snake_heads.flatten()[:]
     return observations
@@ -208,8 +209,59 @@ def logits_greedy(state, logits, height, width):
     action_list[3:] = greedy_action
 
     return action_list
+def transform_actions(state, actions, height, width):
+    state_copy = state.copy()
+    board_width = state_copy['board_width']
+    board_height = state_copy['board_height']
+    beans_positions = state_copy[1]
+    snakes_positions = {key: state_copy[key] for key in state_copy.keys() & {2, 3, 4, 5, 6, 7}}
+    snakes_positions_list = []
+    for key, value in snakes_positions.items():
+        snakes_positions_list.append(value)
+    snake_map = make_grid_map(board_width, board_height, beans_positions, snakes_positions)
+    state_ = np.array(snake_map)
+    state = np.squeeze(state_, axis=2)
 
+    beans = state_copy[1]
+    # beans = info['beans_position']
+    snakes_positions = {key: state_copy[key] for key in state_copy.keys() & {2, 3, 4, 5, 6, 7}}
+    snakes_positions_list = []
+    for key, value in snakes_positions.items():
+        snakes_positions_list.append(value)
+    snakes = snakes_positions_list
+    greedy_action = greedy_snake(state, beans, snakes, width, height, [3, 4, 5])
 
+    action_list = np.zeros(6)
+    action_list[:3] = actions
+    action_list[3:] = greedy_action
+
+    return action_list
+def state_to_list(states):
+    state = []
+    name = {"up": 0, "down": 1, "left": 2, "right": 3}
+    for key, value in states.items():
+        if isinstance(key, int):
+            num = 0
+            for _ in value:
+                state.append(_[0])
+                state.append(_[1])
+                num += 1
+            for k in range(num):
+                state.append(1)
+        else:
+            if key == 'last_direction':
+                while len(state) < 600:
+                    state.append(0.)
+                if value is None:
+                    for i in range(6):
+                        state.append(0)
+                else:
+                    for _ in value:
+                        state.append(name[_])
+                        #state.append(np.eye(4)[name[_]])
+    state = np.array(state)
+    state = state.astype(dtype=np.float32)
+    return state
 def get_surrounding(state, width, height, x, y):
     surrounding = [state[(y - 1) % height][x],  # up
                    state[(y + 1) % height][x],  # down

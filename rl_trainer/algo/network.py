@@ -91,3 +91,4 @@ class LSTMNet(nn.Module):
     def forward(self, data, ):
         output, (_, _) = self.lstm(data)
         return output
+

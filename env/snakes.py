@@ -37,7 +37,7 @@ class SnakeEatBeans(GridGame, GridObservation, DictObservation):
         self.action_dim = self.get_action_dim()
 
     def check_win(self):
-        flg = self.won.index(max(self.won)) + 2
+        flg = self.won.index(max(self.won)) + 2         #？why+2
         return flg
 
     def get_grid_observation(self, current_state, player_id, info_before):
