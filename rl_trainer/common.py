@@ -328,7 +328,7 @@ def t_state(state):
     state_copy = state.copy()
     board_width = state_copy['board_width']
     board_height = state_copy['board_height']
-    feature = np.zeros((10, 20, 11))
+    feature = np.zeros((7, 10, 20))
     beans_positions = state_copy[1]
     snakes_positions = {key: state_copy[key] for key in state_copy.keys() & {2, 3, 4, 5, 6, 7}}
     snakes_positions_list = []
@@ -337,13 +337,13 @@ def t_state(state):
     snake_map = make_grid_map1(board_width, board_height, beans_positions, snakes_positions)
     for i in range(board_width):
         for j in range(board_height):
-            feature[i][j][0] = 1 if snake_map[i][j][0] >= 30 else 0
-            feature[i][j][1] = 1 if 30 < snake_map[i][j][0] < 40 else 0
-            feature[i][j][2] = 1 if snake_map[i][j][0] > 40 else 0
-            feature[i][j][3] = 1 if 10 < snake_map[i][j][0] < 30 else 0
-            feature[i][j][4] = 1 if 10 < snake_map[i][j][0] < 20 else 0
-            feature[i][j][5] = 1 if 20 < snake_map[i][j][0] < 30 else 0
-            feature[i][j][6] = 1 if snake_map[i][j][0] == 1 else 0
+            feature[0][i][j] = 1 if snake_map[i][j][0] >= 30 else 0
+            feature[1][i][j] = 1 if 30 < snake_map[i][j][0] < 40 else 0
+            feature[2][i][j] = 1 if snake_map[i][j][0] > 40 else 0
+            feature[3][i][j] = 1 if 10 < snake_map[i][j][0] < 30 else 0
+            feature[4][i][j] = 1 if 10 < snake_map[i][j][0] < 20 else 0
+            feature[5][i][j] = 1 if 20 < snake_map[i][j][0] < 30 else 0
+            feature[6][i][j] = 1 if snake_map[i][j][0] == 1 else 0
     return feature
 def logits_greedy(state, logits, height, width):
     state_copy = state.copy()
