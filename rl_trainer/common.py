@@ -7,6 +7,7 @@ from typing import Union
 from torch.distributions import Categorical
 import os
 import yaml
+from rule import my_controller
 
 device = torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -464,3 +465,8 @@ def save_config(args, save_path):
     file = open(os.path.join(str(save_path), 'config.yaml'), mode='w', encoding='utf-8')
     yaml.dump(vars(args), file)
     file.close()
+
+
+def get_avail_actions(state,agent_id):
+    state['controlled_snake_index'] = agent_id+2
+    return my_controller(state)[0]

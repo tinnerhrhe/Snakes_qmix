@@ -40,6 +40,8 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
         actions, avail_actions, actions_onehot = [], [], []
         for agent_id in range(3):
             avail_action = [1,1,1,1]
+            #avail_action = get_avail_actions(state,agent_id)
+
             action = agents.choose_action(obs[agent_id], last_action[agent_id], agent_id,
                                                 avail_action, epsilon, evaluate)
             # generate onehot vector of th action
@@ -100,6 +102,7 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
     avail_actions = []
     for agent_id in range(3):
         avail_action = [1,1,1,1]        #self.env.get_avail_agent_actions(agent_id)
+        #avail_action = get_avail_actions(state,agent_id)
         avail_actions.append(avail_action)
     avail_u.append(avail_actions)
     avail_u_next = avail_u[1:]
@@ -188,7 +191,7 @@ def main(args):
         model.load_model(load_dir, episode=args.load_model_run_episode)
     '''
     episode = 0
-    time_steps, train_steps, evaluate_steps = 0, 0, -1
+    train_steps = 0
     agent = Qagent.Agents(env, args)
     buffer = ReplayBuffer(args, args.buffer_size, args.batch_size)
     #while time_steps // 200 < args.episode_length:
@@ -208,7 +211,7 @@ def main(args):
         for episode_idx in range(1):
             episode, _, _, steps = generate_episode(args, agent, env, episode_idx)
             episodes.append(episode)
-            time_steps += steps
+            #time_steps += steps
             # print(_)
         # episode的每一项都是一个(1, episode_len, n_agents, 具体维度)四维数组，下面要把所有episode的的obs拼在一起
         episode_batch = episodes[0]
