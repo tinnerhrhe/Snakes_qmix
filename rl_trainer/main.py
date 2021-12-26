@@ -1,6 +1,5 @@
 import argparse
 import datetime
-
 from tensorboardX import SummaryWriter
 from replay_buffer import ReplayBuffer
 from pathlib import Path
@@ -11,6 +10,7 @@ from algo.ddpg import DDPG
 from common import *
 from log_path import *
 from env.chooseenv import make
+#from dqnAgent import *
 from rollout import CommRolloutWorker
 from agent import Qagent
 from algo.qmix import QMIX
@@ -29,9 +29,7 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
     episode_reward1 = np.zeros(6)
     last_action = np.zeros((3, 4))
     #print("------",agents.policy)
-    if not evaluate:
-        agents.policy.init_hidden(1)
-
+    agents.policy.init_hidden(1)
     epsilon = 0 if evaluate else args.epsilon
     if args.epsilon_anneal_scale == 'episode':
         epsilon = epsilon - args.anneal_epsilon if epsilon > args.min_epsilon else epsilon
@@ -40,9 +38,11 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
         # time.sleep(0.2)
 
         obs = get_observations(state, [0, 1, 2], 46, env.board_height, env.board_width)
+        #obs = visual_ob(state[0])
         actions, avail_actions, actions_onehot = [], [], []
         for agent_id in range(3):
-            avail_action = [1,1,1,1]
+            avail_action = get_available_action(state, agent_id)
+            #print(avail_action)
             action = agents.choose_action(obs[agent_id], last_action[agent_id], agent_id,
                                                 avail_action, epsilon, evaluate)
             # generate onehot vector of th action
@@ -52,6 +52,8 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
             actions_onehot.append(action_onehot)
             avail_actions.append(avail_action)
             last_action[agent_id] = action_onehot
+        if evaluate:
+            print("=====",actions)
         all_actions = transform_actions(state, actions, env.board_height, env.board_width)
         next_state, reward, terminated, _, info = env.step(env.encode(all_actions))
         episode_reward += np.sum(reward[0:3]) - np.sum(reward[3:6])
@@ -75,6 +77,7 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
         #reward = np.sum(reward[0:3]) - np.sum(reward[3:6])
         win_tag = True if terminated and info['score'][0:3] > info['score'][3:6] else False#battle_won' in info and info['battle_won'] else False
         o.append(obs)
+        #print("----------+",state_to_list(state).shape)
         s.append(state_to_list(state))
         u.append(np.reshape(actions, [3, 1]))
         u_onehot.append(actions_onehot)
@@ -91,11 +94,13 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
     state = next_state[0]
     obs = get_observations(state, [0, 1, 2], 46, env.board_height, env.board_width)
     o.append(obs)
+    #print("-----++",state_to_list(state).shape)
     s.append(state_to_list(state))
     o_next = o[1:]
     s_next = s[1:]
     o = o[:-1]
     s = s[:-1]
+    #print("<<<<",len(s),s[0].shape)
     # get avail_action for last obs，because target_q needs avail_action in training
     avail_actions = []
     for agent_id in range(3):
@@ -109,6 +114,7 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
     for i in range(step, args.episode_length):
         o.append(np.zeros((3, 46)))
         u.append(np.zeros([3, 1]))
+        #print("======++",np.zeros(args.state_shape).shape)
         s.append(np.zeros(args.state_shape))
         r.append([0.])
         o_next.append(np.zeros((3, 46)))
@@ -138,6 +144,7 @@ def generate_episode(args, agents, env, episode_num=None, evaluate=False):
         args.epsilon = epsilon
     #if evaluate and episode_num == args.evaluate_epoch - 1 and args.replay_dir != '':
     #   env.save_replay()
+    #print("==========", episode['s'].shape)
     return episode, episode_reward, win_tag, step
 def evaluate(env, agent, args):
     win_number = 0
@@ -190,7 +197,9 @@ def main(args):
     episode = 0
     train_steps = 0
     agent = Qagent.Agents(env, args)
+
     buffer = ReplayBuffer(args, args.buffer_size, args.batch_size)
+    #agent = DQNAgent(env, args, buffer)
     #while time_steps // 200 < args.episode_length:
     for epoch in range(20000):                      #args.max_episodes
         """
@@ -205,7 +214,7 @@ def main(args):
         """
         episodes = []
         # 收集self.args.n_episodes个episodes
-        for episode_idx in range(1):
+        for episode_idx in range(10):
             episode, _, _, steps = generate_episode(args, agent, env, episode_idx)
             episodes.append(episode)
             #time_steps += steps
@@ -216,8 +225,9 @@ def main(args):
         for episode in episodes:
             for key in episode_batch.keys():
                 episode_batch[key] = np.concatenate((episode_batch[key], episode[key]), axis=0)
+        #print(episode_batch['s'].shape)
         buffer.store_episode(episode_batch)
-        for train_step in range(1):
+        for train_step in range(4):
             mini_batch = buffer.sample(min(buffer.current_size, args.batch_size))
             agent.train(mini_batch, train_steps)
             train_steps += 1
@@ -338,8 +348,8 @@ if __name__ == '__main__':
     parser.add_argument('--tau', default=0.001, type=float)
     #parser.add_argument('--gamma', default=0.95, type=float)
     parser.add_argument('--seed', default=1, type=int)
-    parser.add_argument('--a_lr', default=0.0001, type=float)
-    parser.add_argument('--c_lr', default=0.0001, type=float)
+    parser.add_argument('--a_lr', default=0.01, type=float)
+    parser.add_argument('--c_lr', default=0.01, type=float)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--epsilon', default=0.5, type=float)
     parser.add_argument('--epsilon_speed', default=0.99998, type=float)
@@ -361,11 +371,11 @@ if __name__ == '__main__':
     parser.add_argument('--model_dir', type=str, default='./agent', help='model directory of the policy')
     parser.add_argument('--result_dir', type=str, default='./result', help='result directory of the policy')
     parser.add_argument('--replay_dir', type=str, default='./replay', help='absolute path to save the replay')
-    parser.add_argument('--cuda', type=bool, default=False, help='whether to use the GPU')
+    parser.add_argument('--cuda', type=bool, default=True, help='whether to use the GPU')
     args = parser.parse_args()
     args.rnn_hidden_dim = 64
     args.qmix_hidden_dim = 32
-    args.two_hyper_layers = False
+    args.two_hyper_layers = True
     args.hyper_hidden_dim = 64
     args.qtran_hidden_dim = 64
     args.lr = 5e-3
@@ -378,7 +388,7 @@ if __name__ == '__main__':
     args.epsilon_anneal_scale = 'episode'
     args.n_agents = 3
     args.n_actions = 4
-    args.state_shape = 606
+    args.state_shape = 206
     # the number of the train steps in one epoch
     args.train_steps = 200
 

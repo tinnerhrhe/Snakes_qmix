@@ -23,7 +23,8 @@ class Agents:
             inputs = np.hstack((inputs, agent_id))
 
         self.policy.eval_hidden.unsqueeze(dim=0)
-        print(self.policy.eval_hidden)
+        #if evaluate:
+            #print(self.policy.eval_hidden)
         hidden_state = self.policy.eval_hidden[:, agent_num, :]
 
         # transform the shape of inputs from (42,) to (1,42)
@@ -35,13 +36,18 @@ class Agents:
 
         # get q value
         q_value, self.policy.eval_hidden[:, agent_num, :] = self.policy.eval_rnn(inputs, hidden_state)
-
+        #if not evaluate:
+            #print(q_value)
+            #print(epsilon)
+        #else:
+            #print("---------", q_value)
         # choose action from q value
         q_value[avail_actions == 0.0] = - float("inf")
         if np.random.uniform() < epsilon:
             action = np.random.choice(avail_actions_ind)  # action是一个整数
         else:
             action = torch.argmax(q_value)
+        #print("->->->",action)
         return action
 
     def _choose_action_from_softmax(self, inputs, avail_actions, epsilon, evaluate=False):
