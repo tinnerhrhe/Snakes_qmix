@@ -15,7 +15,7 @@ from rollout import CommRolloutWorker
 from agent import Qagent
 from algo.qmix import QMIX
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
 def generate_episode(args, agents, env, episode_num=None, evaluate=False):
     #if args.replay_dir != '' and evaluate and episode_num == 0:  # prepare for save replay
         #env.close()
@@ -376,7 +376,7 @@ if __name__ == '__main__':
     args.rnn_hidden_dim = 64
     args.qmix_hidden_dim = 32
     args.two_hyper_layers = True
-    args.hyper_hidden_dim = 64
+    args.hyper_hidden_dim = 128
     args.qtran_hidden_dim = 64
     args.lr = 5e-3
     args.episode_limit = args.episode_length

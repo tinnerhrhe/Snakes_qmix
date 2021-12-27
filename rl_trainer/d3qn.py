@@ -13,6 +13,7 @@ from PER import *
 import cv2
 import argparse
 import datetime
+import resnet
 from tensorboardX import SummaryWriter
 from replay_buffer import ReplayBuffer
 from common import *
@@ -24,41 +25,44 @@ sys.path.append(str(base_dir))
 from env.chooseenv import make
 
 def OurModel(input_shape, action_space, dueling):
+    '''
     X_input = Input(input_shape)
     X = X_input
-
-    X = Conv2D(64, 5, strides=(3, 3), padding="valid", input_shape=input_shape, activation="relu",
+    print(X.shape)
+    X = Conv2D(32, 4, strides=(2, 2), padding="valid", input_shape=input_shape, activation="relu",
                data_format="channels_first")(X)
     print(X.shape)
-    X = Conv2D(64, 4, strides=(2, 2), padding="valid", activation="relu", data_format="channels_first")(X)
+    X = Conv2D(32, 2, strides=(2, 2), padding="valid", activation="relu", data_format="channels_first")(X)
     print(X.shape)
-    X = Conv2D(64, 3, strides=(1, 1), padding="valid", activation="relu", data_format="channels_first")(X)
+    X = Conv2D(32, 2, strides=(1, 1), padding="valid", activation="relu", data_format="channels_first")(X)
     print(X.shape)
     X = Flatten()(X)
     # 'Dense' is the basic form of a neural network layer
     # Input Layer of state size(4) and Hidden Layer with 512 nodes
-    X = Dense(512, activation="relu", kernel_initializer='he_uniform')(X)
-
-    # Hidden layer with 256 nodes
     X = Dense(256, activation="relu", kernel_initializer='he_uniform')(X)
 
+    # Hidden layer with 256 nodes
+    X = Dense(128, activation="relu", kernel_initializer='he_uniform')(X)
+
     # Hidden layer with 64 nodes
-    X = Dense(64, activation="relu", kernel_initializer='he_uniform')(X)
+    X = Dense(32, activation="relu", kernel_initializer='he_uniform')(X)
 
     if dueling:
         state_value = Dense(1, kernel_initializer='he_uniform')(X)
-        state_value = Lambda(lambda s: K.expand_dims(s[:, 0], -1), output_shape=(action_space, action_space))(state_value)
-
+        state_value = Lambda(lambda s: K.expand_dims(s[:, 0], -1), output_shape=(action_space,))(state_value)
+        #print("---->", state_value.shape)
         action_advantage = Dense(action_space, kernel_initializer='he_uniform')(X)
-        action_advantage = Lambda(lambda a: a[:, :] - K.mean(a[:, :], keepdims=True), output_shape=(action_space,action_space))(
+        action_advantage = Lambda(lambda a: a[:, :] - K.mean(a[:, :], keepdims=True), output_shape=(action_space,))(
             action_advantage)
-
+        #print("---->", action_advantage.shape)
         X = Add()([state_value, action_advantage])
+        #print("------", X.shape)
     else:
         # Output Layer with # of actions: 2 nodes (left, right)
         X = Dense(action_space, activation="linear", kernel_initializer='he_uniform')(X)
-
-    model = Model(inputs=X_input, outputs=X, name='snakes CNN model')
+    '''
+    model = resnet.ResnetBuilder.build_resnet_18((7, 10, 20), action_space)
+    #model = Model(inputs=X_input, outputs=X, name='model')
     model.compile(loss="mean_squared_error", optimizer=RMSprop(lr=0.00025, rho=0.95, epsilon=0.01),
                   metrics=["accuracy"])
 
@@ -72,16 +76,16 @@ class DQNAgent:
 
         # by default, CartPole-v1 has max episode steps = 500
         # we can use this to experiment beyond 500
-        self._max_episode_steps = 200
+        self._max_episode_steps = 2000
         self.state_size = 206
-        self.action_size = 4
+        self.action_size = 64
         self.EPISODES = 1000
 
         # Instantiate memory
         memory_size = 10000
         self.MEMORY = Memory(memory_size)
-        self.memory = deque(maxlen=2000)
-
+        self.memory = deque(maxlen=1000)
+        self.env_name = "snakes"
         self.gamma = 0.95  # discount rate
 
         # EXPLORATION HYPERPARAMETERS for epsilon and epsilon greedy strategy
@@ -94,7 +98,7 @@ class DQNAgent:
         # defining model parameters
         self.ddqn = True  # use doudle deep q network
         self.Soft_Update = False  # use soft parameter update
-        self.dueling = True  # use dealing netowrk
+        self.dueling = False  # use dealing netowrk
         self.epsilon_greedy = False  # use epsilon greedy strategy
         self.USE_PER = True  # use priority experienced replay
 
@@ -104,15 +108,15 @@ class DQNAgent:
         if not os.path.exists(self.Save_Path): os.makedirs(self.Save_Path)
         self.scores, self.episodes, self.average = [], [], []
 
-        self.Model_name = os.path.join(self.Save_Path, "_PER_D3QN_CNN.h5")
+        self.Model_name = os.path.join(self.Save_Path, "_PER_D3QN_CNN.pth")
 
         self.ROWS = 10
         self.COLS = 20
         self.num = 7
         self.REM_STEP = 4
 
-        self.image_memory = np.zeros((self.REM_STEP, self.num, self.ROWS, self.COLS))
-        self.state_size = (self.REM_STEP, self.num, self.ROWS, self.COLS)
+        self.image_memory = np.zeros((self.num, self.ROWS, self.COLS))
+        self.state_size = (self.num, self.ROWS, self.COLS)
 
         # create main model and target model
         self.model = OurModel(input_shape=self.state_size, action_space=self.action_size, dueling=self.dueling)
@@ -155,11 +159,12 @@ class DQNAgent:
 
         if explore_probability > np.random.rand():
             # Make a random action (exploration)
-            return np.random.randint(0,4,size=3), explore_probability
+            return random.randrange(self.action_size), explore_probability
         else:
             # Get action from Q-network (exploitation)
             # Estimate the Qs values state
             # Take the biggest Q value (= the best action)
+            state = np.expand_dims(state, 0)
             return np.argmax(self.model.predict(state)), explore_probability
 
     def replay(self):
@@ -187,6 +192,7 @@ class DQNAgent:
         # do batch prediction to save speed
         # predict Q-values for starting state using the main network
         target = self.model.predict(state)
+        #print("====", target)
         target_old = np.array(target)
         # predict best action in ending state using the main network
         target_next = self.model.predict(next_state)
@@ -221,6 +227,7 @@ class DQNAgent:
             self.MEMORY.batch_update(tree_idx, absolute_errors)
 
         # Train the Neural Network with batches
+        #print("====",state.shape,target.shape)
         self.model.fit(state, target, batch_size=self.batch_size, verbose=0)
 
     def load(self, name):
@@ -299,9 +306,10 @@ class DQNAgent:
             while not done:
                 decay_step += 1
                 action, explore_probability = self.act(t_state(state[0]), decay_step)
-                all_actions = transform_actions(state, action, env.board_height, env.board_width)
+                action = int2list(action)
+                all_actions = transform_actions(state[0], action, env.board_height, env.board_width)
                 next_state, reward, done, _, info = env.step(env.encode(all_actions))
-                episode_reward += np.sum(reward[0:3]) - np.sum(reward[3:6])
+                episode_reward += (np.sum(reward[0:3]) - np.sum(reward[3:6]))
                 episode_reward1 += np.array(reward)
                 if done:
                     if np.sum(episode_reward1[:3]) > np.sum(episode_reward1[3:]):
@@ -318,7 +326,7 @@ class DQNAgent:
                     else:
                         step_reward = get_reward(info, [0, 1, 2], reward, score=0)
                 reward = np.sum(step_reward)
-                self.remember(t_state(state[0]), action, reward, t_state(next_state[0]), done)
+                self.remember(t_state(state[0]), list2int(action), reward, t_state(next_state[0]), done)
                 state = next_state
                 i += 1
                 if done:
@@ -327,13 +335,13 @@ class DQNAgent:
                         self.update_target_model()
 
                     # every episode, plot the result
-                    average = self.PlotModel(i, e)
-
-                    print("episode: {}/{}, score: {}, e: {:.2}, average: {}".format(e, self.EPISODES, i,
+                    average = self.PlotModel(episode_reward, e)
+                    win_tag = True if info['score'][0:3] > info['score'][3:6] else False
+                    print("episode: {}/{}, score: {}, win:{}, e: {:.2}, average: {}".format(e, self.EPISODES, episode_reward,win_tag,
                                                                                     explore_probability, average))
-                    if i == self.env._max_episode_steps:
+                    if i == self._max_episode_steps:
                         print("Saving trained model to", self.Model_name)
-                        # self.save(self.Model_name)
+                        #self.save(self.Model_name)
                         break
                 self.replay()
         #self.env.close()
@@ -341,12 +349,15 @@ class DQNAgent:
     def test(self):
         self.load(self.Model_name)
         for e in range(self.EPISODES):
-            state = self.reset()
+            state = env.reset()
             done = False
             i = 0
             while not done:
-                action = np.argmax(self.model.predict(state))
-                next_state, reward, done, _ = env.step(action)
+                action = np.argmax(self.model.predict(t_state(state[0])))
+                action = int2list(action)
+                all_actions = transform_actions(state[0], action, env.board_height, env.board_width)
+                next_state, reward, done, _, info = env.step(env.encode(all_actions))
+                #next_state, reward, done, _ = env.step(action)
                 i += 1
                 if done:
                     print("episode: {}/{}, score: {}".format(e, self.EPISODES, i))

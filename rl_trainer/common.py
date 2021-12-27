@@ -7,6 +7,7 @@ from typing import Union
 from torch.distributions import Categorical
 import os
 import yaml
+from rule import my_controller
 
 device = torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -335,8 +336,8 @@ def t_state(state):
     for key, value in snakes_positions.items():
         snakes_positions_list.append(value)
     snake_map = make_grid_map1(board_width, board_height, beans_positions, snakes_positions)
-    for i in range(board_width):
-        for j in range(board_height):
+    for i in range(board_height):
+        for j in range(board_width):
             feature[0][i][j] = 1 if snake_map[i][j][0] >= 30 else 0
             feature[1][i][j] = 1 if 30 < snake_map[i][j][0] < 40 else 0
             feature[2][i][j] = 1 if snake_map[i][j][0] > 40 else 0
@@ -376,6 +377,16 @@ def logits_greedy(state, logits, height, width):
     action_list[3:] = greedy_action
 
     return action_list
+def get_avail_actions(state,agent_id):
+    state['controlled_snake_index'] = agent_id+2
+    return my_controller(state)[0]
+def int2list(action):
+    x1 = action // 16
+    x2 = (action-x1*16) // 4
+    x3 = (action-x1*16-x2*4)
+    return np.array([x1,x2,x3])
+def list2int(action):
+    return action[0]*16+action[1]*4+action[2]
 def transform_actions(state, actions, height, width):
     state_copy = state.copy()
     board_width = state_copy['board_width']
