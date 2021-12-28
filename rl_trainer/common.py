@@ -144,6 +144,7 @@ def get_observations(state, agents_index, obs_dim, height, width):
     snakes_position = np.array(snakes_positions_list, dtype=object)
     beans_position = np.array(beans_positions, dtype=object).flatten()
     for i in agents_index:
+
         # self head position
         observations[i][:2] = snakes_position[i][0][:]
 
@@ -257,23 +258,26 @@ def get_reward(info, snake_index, reward, score):
     step_reward = np.zeros(len(snake_index))
     for i in snake_index:
         if score == 1:
-            step_reward[i] += 50
-        elif score == 2:
-            step_reward[i] -= 25
-        elif score == 3:
             step_reward[i] += 10
-        elif score == 4:
-            step_reward[i] -= 5
+        elif score == 2:
+            step_reward[i] -= 20
+        #elif score == 3:
+            #step_reward[i] += 10
+        #elif score == 4:
+            #step_reward[i] -= 5
 
         if reward[i] > 0:
-            step_reward[i] += 20
+            step_reward[i] += 1
         else:
             self_head = np.array(snake_heads[i])
+            dists_bean = [np.sqrt(np.sum(np.square(beans_head - self_head))) for beans_head in beans_position]
+            step_reward[i] -= min(dists_bean) / 100
             dists = [np.sqrt(np.sum(np.square(other_head - self_head))) for other_head in beans_position]
-            step_reward[i] -= min(dists)
+            step_reward[i] -= min(dists) / 500
             if reward[i] < 0:
-                step_reward[i] -= 10
-
+                step_reward[i] += reward[i]
+    for i in snake_index:
+        step_reward[i] = step_reward[i]*0.7+np.mean(step_reward)*0.3
     return step_reward
 
 
@@ -325,7 +329,7 @@ def get_available_action(state, id):
         else:
             actions.append(1)
     return actions
-def t_state(state):
+def all_state(state):
     state_copy = state.copy()
     board_width = state_copy['board_width']
     board_height = state_copy['board_height']
@@ -338,13 +342,42 @@ def t_state(state):
     snake_map = make_grid_map1(board_width, board_height, beans_positions, snakes_positions)
     for i in range(board_height):
         for j in range(board_width):
-            feature[0][i][j] = 1 if snake_map[i][j][0] >= 30 else 0
-            feature[1][i][j] = 1 if 30 < snake_map[i][j][0] < 40 else 0
-            feature[2][i][j] = 1 if snake_map[i][j][0] > 40 else 0
-            feature[3][i][j] = 1 if 10 < snake_map[i][j][0] < 30 else 0
-            feature[4][i][j] = 1 if 10 < snake_map[i][j][0] < 20 else 0
-            feature[5][i][j] = 1 if 20 < snake_map[i][j][0] < 30 else 0
-            feature[6][i][j] = 1 if snake_map[i][j][0] == 1 else 0
+            feature[0][i][j] = 1 if snake_map[i][j][0] >= 30 else 0    #all snakes
+            feature[1][i][j] = 1 if 30 < snake_map[i][j][0] < 40 else 0     #our snakes
+            feature[2][i][j] = 1 if snake_map[i][j][0] > 40 else 0    #enemy snakes
+            feature[3][i][j] = 1 if 10 < snake_map[i][j][0] < 30 else 0   #all heads
+            feature[4][i][j] = 1 if 10 < snake_map[i][j][0] < 20 else 0    #our heads
+            feature[5][i][j] = 1 if 20 < snake_map[i][j][0] < 30 else 0    #enemy heads
+            feature[6][i][j] = 1 if snake_map[i][j][0] == 1 else 0     #beans
+    return feature
+def t_state(state,agent_id):
+    state_copy = state.copy()
+    board_width = state_copy['board_width']
+    board_height = state_copy['board_height']
+    feature = np.zeros((11, 10, 20))
+    beans_positions = state_copy[1]
+    snakes_positions = {key: state_copy[key] for key in state_copy.keys() & {2, 3, 4, 5, 6, 7}}
+    snakes_positions_list = []
+    for key, value in snakes_positions.items():
+        snakes_positions_list.append(value)
+    snake_map = make_grid_map1(board_width, board_height, beans_positions, snakes_positions)
+    agent_id = agent_id + 2
+    for i in range(board_height):
+        for j in range(board_width):
+            feature[0][i][j] = 1 if snake_map[i][j][0] >= 10 else 0    #all snakes
+            feature[1][i][j] = 1 if snake_map[i][j][0] == 40 + agent_id or snake_map[i][j][0] == 20 + agent_id else 0
+            feature[2][i][j] = 1 if snake_map[i][j][0] == 40 + agent_id + 1 or snake_map[i][j][0] == 20 + agent_id + 1 else 0
+            feature[3][i][j] = 1 if snake_map[i][j][0] == 40 + agent_id + 2 or snake_map[i][j][0] == 20 + agent_id + 2 else 0
+            #feature[1][i][j] = 1 if 30 < snake_map[i][j][0] < 40 else 0     #our snakes
+            #feature[2][i][j] = 1 if snake_map[i][j][0] > 40 else 0    #enemy snakes
+            #feature[3][i][j] = 1 if 10 < snake_map[i][j][0] < 30 else 0   #all heads
+            feature[4][i][j] = 1 if 10 < snake_map[i][j][0] < 20 else 0    #our heads
+            feature[5][i][j] = 1 if 20 < snake_map[i][j][0] < 30 else 0    #enemy heads
+            feature[6][i][j] = 1 if snake_map[i][j][0] == 1 else 0     #beans
+            feature[7][i][j] = 1 if snake_map[i][j][0] == 10+agent_id else 0
+            feature[8][i][j] = 1 if snake_map[i][j][0] == 30 + agent_id or snake_map[i][j][0] == 10 + agent_id else 0
+            feature[9][i][j] = 1 if snake_map[i][j][0] == 30 + agent_id + 1 or snake_map[i][j][0] == 10 + agent_id + 1 else 0
+            feature[10][i][j] = 1 if snake_map[i][j][0] == 30 + agent_id + 2 or snake_map[i][j][0] == 10 + agent_id + 2 else 0
     return feature
 def logits_greedy(state, logits, height, width):
     state_copy = state.copy()
@@ -411,7 +444,7 @@ def transform_actions(state, actions, height, width):
 
     action_list = np.zeros(6)
     action_list[:3] = actions
-    action_list[3:] = greedy_action
+    action_list[3:] = np.random.randint(0,4,3)
 
     return action_list
 def state_to_list(states):
