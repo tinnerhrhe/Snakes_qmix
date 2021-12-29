@@ -326,6 +326,7 @@ def my_controller(observation_list, action_space_list=None, is_act_continuous=No
         snakes_lens = [snake.len for snake in snakes.values()]
         snakes_claimed_counts = [snake.len for snake in snakes.values()]
         print('snakes_lens: ', snakes_lens)
+
         print('snakes_claimed_counts: ', snakes_claimed_counts)
 
         # design defense threshold
@@ -451,7 +452,9 @@ def my_controller(observation_list, action_space_list=None, is_act_continuous=No
 
             # traverse and find the action combination with most grids claimed
             max_claimed_counts_sum = 0
+            max_claimed_counts_sum2 =0
             best_pos_comb = None
+            best_pos_comb2 = None
             for pos_comb in itertools.product(
                     *safe_positions_list):  # calculate cartesian product of safe positions list
                 # initiate claimed_count
@@ -474,17 +477,22 @@ def my_controller(observation_list, action_space_list=None, is_act_continuous=No
                 if claimed_counts_sum > max_claimed_counts_sum:
                     max_claimed_counts_sum = claimed_counts_sum
                     best_pos_comb = pos_comb  # one-to-one with free_team_snakes_indexes
+                elif claimed_counts_sum >max_claimed_counts_sum2 :
+                    max_claimed_counts_sum2=claimed_counts_sum
+                    best_pos_comb2=pos_comb
                 print('claimed_counts_sum: ', claimed_counts_sum)
                 print('pos_comb: ', pos_comb)
 
             print('max_claimed_counts_sum: ', max_claimed_counts_sum, 'best_pos_comb: ', best_pos_comb)
 
-            if best_pos_comb:
+            if best_pos_comb and best_pos_comb2:
                 for i, idx in enumerate(free_team_snakes_indexes):
                     if ctrl_agent_index == idx:
                         action = [[0, 0, 0, 0]]
                         direction = snakes[idx].get_action(best_pos_comb[i])
+                        direction2 = snakes[idx].get_action(best_pos_comb2[i])
                         action[0][direction] = 1
+                        action[0][direction2] = 1
                         print('the controlled agent {} make a safe move'.format(idx), action[0])
                         print(
                             '*********************************** safe move ******************************************')
